@@ -145,6 +145,3 @@ curl -X GET http://localhost:5000/api/bookings/1   -H "Authorization: your_actua
 - `JWT_SECRET`: Secret key for JWT signing.
 - `ADMIN_API_KEY`: API key for admin access.
 
-
-## License
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
