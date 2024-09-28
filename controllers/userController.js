@@ -14,25 +14,79 @@ exports.getAvailability = (req, res) => {
 };
 
 // function to book seat in a train
+// exports.bookSeat = (req, res) => {
+//     const { train_id } = req.body;
+//     const user_id = req.user.id;
+//     if (!train_id) {
+//         return res.status(400).json({ error: 'Please provide train id' });
+//     }
+//     db.query('SELECT available_seats FROM trains WHERE id = ?', [train_id], (err, results) => {
+//         if (err) return res.status(500).send(err);
+//         if (results && results[0]?.available_seats > 0) {
+//             db.query('UPDATE trains SET available_seats = available_seats - 1 WHERE id = ?', [train_id], (err) => {
+//                 if (err) return res.status(500).send(err);
+//                 db.query('INSERT INTO bookings (user_id, train_id) VALUES (?, ?)', [user_id, train_id], (err) => {
+//                     if (err) return res.status(500).send(err);
+//                     res.status(201).send('Seat booked');
+//                 });
+//             });
+//         } else {
+//             res.status(400).send('No seats available');
+//         }
+//     });
+// };
+
+// Function to booking seat with transaction to prevent race conditions
 exports.bookSeat = (req, res) => {
     const { train_id } = req.body;
     const user_id = req.user.id;
-    if (!train_id) {
-        return res.status(400).json({ error: 'Please provide train id' });
-    }
-    db.query('SELECT available_seats FROM trains WHERE id = ?', [train_id], (err, results) => {
-        if (err) return res.status(500).send(err);
-        if (results && results[0]?.available_seats > 0) {
-            db.query('UPDATE trains SET available_seats = available_seats - 1 WHERE id = ?', [train_id], (err) => {
-                if (err) return res.status(500).send(err);
-                db.query('INSERT INTO bookings (user_id, train_id) VALUES (?, ?)', [user_id, train_id], (err) => {
-                    if (err) return res.status(500).send(err);
-                    res.status(201).send('Seat booked');
-                });
-            });
-        } else {
-            res.status(400).send('No seats available');
+
+    // new transaction
+    db.beginTransaction((err) => {
+        if (err) {
+            return res.status(500).send('Transaction failed');
         }
+
+        // Lock the train row for this booking operation to prevent simultaneous updates
+        db.query('SELECT available_seats FROM trains WHERE id = ? FOR UPDATE', [train_id], (err, results) => {
+            if (err) {
+                return db.rollback(() => {
+                    res.status(500).send('Failed to lock the seat for booking');
+                });
+            }
+
+            if (results && results[0]?.available_seats > 0) {
+                db.query('UPDATE trains SET available_seats = available_seats - 1 WHERE id = ?', [train_id], (err) => {
+                    if (err) {
+                        return db.rollback(() => {
+                            res.status(500).send('Failed to update seat count');
+                        });
+                    }
+
+                    db.query('INSERT INTO bookings (user_id, train_id) VALUES (?, ?)', [user_id, train_id], (err) => {
+                        if (err) {
+                            return db.rollback(() => {
+                                res.status(500).send('Booking failed');
+                            });
+                        }
+
+                        // Commit the transaction
+                        db.commit((err) => {
+                            if (err) {
+                                return db.rollback(() => {
+                                    res.status(500).send('Transaction commit failed');
+                                });
+                            }
+                            res.status(201).send('Seat booked successfully');
+                        });
+                    });
+                });
+            } else {
+                db.rollback(() => {
+                    res.status(400).send('No seats available');
+                });
+            }
+        });
     });
 };
 

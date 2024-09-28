@@ -5,7 +5,7 @@ const db = require('../config/db');
 exports.register = (req, res) => {
     const { username, password, role = 'user' } = req.body; // Default role is 'user'
 
-    // Ensure password is defined
+    // check username and password
     if (!username || !password) {
         return res.status(400).json({ error: 'Username and Password are required' });
     }
@@ -26,7 +26,8 @@ exports.register = (req, res) => {
 
 exports.login = (req, res) => {
     const { username, password } = req.body;
-
+    
+    // check username and password
     if (!username || !password) {
         return res.status(400).json({ error: 'Username and Password are required' });
     }
@@ -36,7 +37,8 @@ exports.login = (req, res) => {
         if (results.length === 0 || !bcrypt.compareSync(password, results[0].password)) {
             return res.status(401).send('Invalid credentials');
         }
-
+        
+        // JWT token as response
         const token = jwt.sign({ id: results[0].id, role: results[0].role }, process.env.JWT_SECRET, { expiresIn: '1h' });
         res.json({ token });
     });
