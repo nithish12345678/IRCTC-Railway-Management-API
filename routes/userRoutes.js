@@ -1,5 +1,5 @@
 const express = require('express');
-const { getAvailability, bookSeat, getBookingDetails, getAllTrains } = require('../controllers/userController');
+const { getAvailability, bookSeat, getSpecificBookingDetails, getBookingDetails, getAllTrains } = require('../controllers/userController');
 const { authenticateJWT } = require('../middleware/authMiddleware');
 const router = express.Router();
 
